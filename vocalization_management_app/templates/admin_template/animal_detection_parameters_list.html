@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block custom_css %}
+<style>
+    .parameter-card {
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        transition: transform 0.3s;
+    }
+    
+    .parameter-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .default-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+    }
+    
+    .parameter-header {
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .parameter-value {
+        font-weight: bold;
+    }
+    
+    .parameter-label {
+        color: #666;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="m-0">{{ page_title }}</h3>
+                    <a href="{% url 'add_animal_detection_parameters' %}" class="btn btn-primary">
+                        <i class="fas fa-plus mr-2"></i> Add New Parameters
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        {% if messages %}
+        <div class="row">
+            <div class="col-12">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="row">
+            {% if parameters %}
+                {% for parameter in parameters %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="card parameter-card {% if parameter.is_default %}border-primary{% endif %}">
+                        {% if parameter.is_default %}
+                        <div class="default-badge">
+                            <span class="badge badge-primary">Default</span>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="card-body">
+                            <div class="parameter-header d-flex justify-content-between">
+                                <h5 class="card-title">{{ parameter.name }}</h5>
+                                <div class="btn-group">
+                                    <a href="{% url 'edit_animal_detection_parameters' parameter.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% if not parameter.is_default %}
+                                    <a href="{% url 'delete_animal_detection_parameters' parameter.id %}" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-2">
+                                <div class="col-6">
+                                    <div class="parameter-label">Min Magnitude</div>
+                                    <div class="parameter-value">{{ parameter.min_magnitude }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="parameter-label">Max Magnitude</div>
+                                    <div class="parameter-value">{{ parameter.max_magnitude }}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-2">
+                                <div class="col-6">
+                                    <div class="parameter-label">Min Frequency</div>
+                                    <div class="parameter-value">{{ parameter.min_frequency }} Hz</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="parameter-label">Max Frequency</div>
+                                    <div class="parameter-value">{{ parameter.max_frequency }} Hz</div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-2">
+                                <div class="col-6">
+                                    <div class="parameter-label">Segment Duration</div>
+                                    <div class="parameter-value">{{ parameter.segment_duration }} s</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="parameter-label">Time Threshold</div>
+                                    <div class="parameter-value">{{ parameter.time_threshold }} s</div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="parameter-label">Min Impulse Count</div>
+                                    <div class="parameter-value">{{ parameter.min_impulse_count }}</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="parameter-label">Created</div>
+                                    <div class="parameter-value">{{ parameter.created_at|date:"M d, Y" }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle mr-2"></i> No detection parameters found. Click "Add New Parameters" to create your first parameter set.
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-info-circle mr-2"></i> About Detection Parameters</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>These parameters are used to detect saw calls in audio recordings. The default parameters are optimized for Amur Leopard vocalizations, but you can create custom parameter sets for different animals.</p>
+                        
+                        <h6 class="mt-3">Parameter Descriptions:</h6>
+                        <ul>
+                            <li><strong>Min/Max Magnitude</strong>: Threshold values for detecting significant audio events.</li>
+                            <li><strong>Min/Max Frequency</strong>: Frequency range (in Hz) to analyze for saw calls.</li>
+                            <li><strong>Segment Duration</strong>: Duration of each analysis segment in seconds.</li>
+                            <li><strong>Time Threshold</strong>: Maximum time gap (in seconds) to consider events as part of the same saw call.</li>
+                            <li><strong>Min Impulse Count</strong>: Minimum number of impulses required to classify an event as a valid saw call.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

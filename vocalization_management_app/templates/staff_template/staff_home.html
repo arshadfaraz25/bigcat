@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Staff Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="fas fa-tachometer-alt me-2"></i>Staff Dashboard
+        </h2>
+        
+        <!-- Quick Search Bar -->
+        <div class="search-container" style="width: 50%;">
+            <form action="{% url 'advanced_search' %}" method="GET" class="d-flex">
+                <input type="text" name="search_query" class="form-control me-2" placeholder="Search audio files..." aria-label="Search">
+                <button type="submit" name="search" value="true" class="btn btn-primary">
+                    <i class="fas fa-search"></i>
+                </button>
+                <a href="{% url 'advanced_search' %}" class="btn btn-outline-secondary ms-2" title="Advanced Search">
+                    <i class="fas fa-sliders-h"></i>
+                </a>
+            </form>
+        </div>
+    </div>
+
+    <!-- Include Live Logging Component -->
+    {% include 'components/live_logging.html' %}
+    
+    <!-- Audio Files List -->
+    <div class="card mt-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-file-audio me-2"></i>Audio Files
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>File Name</th>
+                            <th>Upload Date</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for file in audio_files %}
+                        <tr>
+                            <td>{{ file.audio_file_name }}</td>
+                            <td>{{ file.upload_date|date:"Y-m-d H:i" }}</td>
+                            <td>
+                                {% with status=file.database_entry.first.status %}
+                                <span class="badge {% if status == 'Processing' %}bg-warning{% elif status == 'Processed' %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ status }}
+                                </span>
+                                {% endwith %}
+                            </td>
+                            <td>
+                                {% with status=file.database_entry.first.status %}
+                                {% if status == 'Processed' %}
+                                <a href="{% url 'staff_view_spectrograms' file.file_id %}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-wave-square me-1"></i>View Analysis
+                                </a>
+                                {% endif %}
+                                {% endwith %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">No audio files available.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

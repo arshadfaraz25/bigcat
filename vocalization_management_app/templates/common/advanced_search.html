@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+
+{% block title %}Advanced Audio Search{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">Advanced Audio Search</h2>
+                <div>
+                    {% if request.user.user_type == '1' %}
+                        <a href="{% url 'admin_home' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                        </a>
+                    {% elif request.user.user_type == '2' %}
+                        <a href="{% url 'staff_home' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Search Filters</h5>
+        </div>
+        <div class="card-body">
+            {% if messages %}
+            <div class="alert alert-info">
+                {% for message in messages %}
+                {{ message }}<br>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <form method="GET" action="{% url 'advanced_search' %}">
+                <div class="row mb-3">
+                    <!-- General Search -->
+                    <div class="col-md-6 mb-3">
+                        <label for="search_query" class="form-label">Filename Search</label>
+                        <input type="text" class="form-control" id="search_query" name="search_query" 
+                               placeholder="Search by filename" value="{{ search_query }}">
+                    </div>
+
+                    <!-- Device ID -->
+                    <div class="col-md-6 mb-3">
+                        <label for="device_id" class="form-label">Device ID</label>
+                        <input type="text" class="form-control" id="device_id" name="device_id" 
+                               placeholder="e.g. SMM07257" value="{{ device_id }}">
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <!-- Animal Type -->
+                    <div class="col-md-6 mb-3">
+                        <label for="animal_type" class="form-label">Animal Type</label>
+                        <select class="form-select" id="animal_type" name="animal_type">
+                            <option value="">All Animal Types</option>
+                            {% for value, name in animal_types %}
+                                <option value="{{ value }}" {% if animal_type == value %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Zoo -->
+                    <div class="col-md-6 mb-3">
+                        <label for="zoo" class="form-label">Zoo</label>
+                        <select class="form-select" id="zoo" name="zoo">
+                            <option value="">All Zoos</option>
+                            {% for zoo in zoos %}
+                                <option value="{{ zoo.id }}" {% if zoo_id == zoo.id|stringformat:'i' %}selected{% endif %}>{{ zoo.zoo_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <!-- Upload Date Range -->
+                    <div class="col-md-6">
+                        <fieldset class="border p-3 rounded">
+                            <legend class="w-auto fs-6 float-none px-2">Upload Date Range</legend>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="upload_date_start" class="form-label">From</label>
+                                    <input type="date" class="form-control" id="upload_date_start" name="upload_date_start" value="{{ upload_date_start }}">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="upload_date_end" class="form-label">To</label>
+                                    <input type="date" class="form-control" id="upload_date_end" name="upload_date_end" value="{{ upload_date_end }}">
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+
+                    <!-- Recording Date Range -->
+                    <div class="col-md-6">
+                        <fieldset class="border p-3 rounded">
+                            <legend class="w-auto fs-6 float-none px-2">Recording Date Range</legend>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="recording_date_start" class="form-label">From</label>
+                                    <input type="date" class="form-control" id="recording_date_start" name="recording_date_start" value="{{ recording_date_start }}">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="recording_date_end" class="form-label">To</label>
+                                    <input type="date" class="form-control" id="recording_date_end" name="recording_date_end" value="{{ recording_date_end }}">
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <button type="submit" name="search" value="true" class="btn btn-primary">
+                        <i class="fas fa-search me-2"></i>Search
+                    </button>
+                    <a href="{% url 'advanced_search' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-redo me-2"></i>Reset Filters
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Search Results</h5>
+            <span class="badge bg-primary">{{ audio_files.count }} Files</span>
+        </div>
+        <div class="card-body">
+            {% if audio_files %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>File Name</th>
+                                <th>Animal Type</th>
+                                <th>Zoo</th>
+                                <th>Recording Date</th>
+                                <th>Upload Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for file in audio_files %}
+                                <tr>
+                                    <td>{{ file.audio_file_name }}</td>
+                                    <td>{{ file.get_animal_type_display }}</td>
+                                    <td>{% if file.zoo %}{{ file.zoo.zoo_name }}{% else %}N/A{% endif %}</td>
+                                    <td>{% if file.recording_date %}{{ file.recording_date|date:"Y-m-d H:i" }}{% else %}N/A{% endif %}</td>
+                                    <td>{{ file.upload_date|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        {% if file.database_entry %}
+                                            <span class="badge {% if file.database_entry.status == 'Processed' %}bg-success{% elif file.database_entry.status == 'Failed' %}bg-danger{% elif file.database_entry.status == 'Processing' %}bg-warning{% else %}bg-info{% endif %}">
+                                                {{ file.database_entry.status }}
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Unknown</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            {% if request.user.user_type == '1' %}
+                                                <a href="{% url 'view_analysis' file.file_id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-chart-line"></i>
+                                                </a>
+                                                <a href="{% url 'view_spectrograms' file.file_id %}" class="btn btn-sm btn-outline-info">
+                                                    <i class="fas fa-image"></i>
+                                                </a>
+                                                {% if file.analysis_excel %}
+                                                    <a href="{% url 'download_excel' file.file_id %}" class="btn btn-sm btn-outline-success">
+                                                        <i class="fas fa-file-excel"></i>
+                                                    </a>
+                                                {% endif %}
+                                            {% elif request.user.user_type == '2' %}
+                                                <a href="{% url 'staff_view_analysis' file.file_id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-chart-line"></i>
+                                                </a>
+                                                <a href="{% url 'staff_view_spectrograms' file.file_id %}" class="btn btn-sm btn-outline-info">
+                                                    <i class="fas fa-image"></i>
+                                                </a>
+                                                {% if file.analysis_excel %}
+                                                    <a href="{% url 'staff_download_excel' file.file_id %}" class="btn btn-sm btn-outline-success">
+                                                        <i class="fas fa-file-excel"></i>
+                                                    </a>
+                                                {% endif %}
+                                            {% endif %}
+                                            {% if file.audio_file %}
+                                                <button class="btn btn-sm btn-outline-secondary" onclick="playAudio('{{ file.audio_file.url }}')">
+                                                    <i class="fas fa-play"></i>
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <p class="mb-0">No audio files found matching your search criteria.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Audio Player Modal -->
+<div class="modal fade" id="audioPlayerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Audio Player</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <audio id="audioPlayer" controls style="width: 100%;"></audio>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Function to play audio
+    function playAudio(audioPath) {
+        const audioPlayer = document.getElementById('audioPlayer');
+        audioPlayer.src = audioPath;
+        const modal = new bootstrap.Modal(document.getElementById('audioPlayerModal'));
+        modal.show();
+        audioPlayer.play();
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,426 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    {% if original_file %}
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0">Analysis Details</h2>
+            {% if request.user.user_type == '1' %}
+                <a href="{% url 'admin_home' %}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            {% elif request.user.user_type == '2' %}
+                <a href="{% url 'staff_home' %}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            {% endif %}
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">{{ original_file.audio_file_name }}</h4>
+                        {% if processing_status %}
+                            <span class="badge {% if processing_status.status == 'Processed' %}bg-success{% elif processing_status.status == 'Failed' %}bg-danger{% elif processing_status.status == 'Processing' %}bg-warning{% else %}bg-info{% endif %}">
+                                {{ processing_status.status }}
+                            </span>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Animal Type:</strong> {{ original_file.get_animal_type_display }}</p>
+                                <p><strong>Recording Date:</strong> {{ original_file.recording_date }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Upload Date:</strong> {{ original_file.upload_date }}</p>
+                                <p><strong>File Size:</strong> {{ original_file.file_size_mb|floatformat:2 }} MB</p>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2 mt-3">
+                            {% if original_file.analysis_excel %}
+                                {% if request.user.user_type == '1' %}
+                                    <a href="{% url 'download_excel' original_file.file_id %}" class="btn btn-success">
+                                        <i class="fas fa-file-excel me-2"></i>Download Excel
+                                    </a>
+                                    <a href="{% url 'view_spectrograms' original_file.file_id %}" class="btn btn-info">
+                                        <i class="fas fa-images me-2"></i>View Spectrograms
+                                    </a>
+                                {% else %}
+                                    <a href="{% url 'staff_download_excel' original_file.file_id %}" class="btn btn-success">
+                                        <i class="fas fa-file-excel me-2"></i>Download Excel
+                                    </a>
+                                    <a href="{% url 'staff_view_spectrograms' original_file.file_id %}" class="btn btn-info">
+                                        <i class="fas fa-images me-2"></i>View Spectrograms
+                                    </a>
+                                {% endif %}
+                            {% endif %}
+                            
+                            {% if original_file.audio_file %}
+                                <button class="btn btn-outline-primary" onclick="playAudio('{{ original_file.audio_file.url }}')">
+                                    <i class="fas fa-play me-2"></i>Play Audio
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Analysis Summary -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Saw Call Analysis Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="alert alert-info">
+                                    <h6>Total Saw Calls Detected: {{ detected_noises|length }}</h6>
+                                    <h6>Total Impulses Detected: {{ total_impulses }}</h6>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <canvas id="sawCallChart" height="150"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Detected Saw Calls -->
+                {% if detected_noises %}
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Detected Saw Calls</h5>
+                        <div>
+                            <input type="text" id="searchTable" class="form-control form-control-sm" placeholder="Search calls...">
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="sawCallsTable">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Start Time</th>
+                                        <th>End Time</th>
+                                        <th>Duration</th>
+                                        <th>Frequency (Hz)</th>
+                                        <th>Magnitude</th>
+                                        <th>Impulses</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for noise in detected_noises %}
+                                    <tr>
+                                        <td>{{ forloop.counter }}</td>
+                                        <td>{{ noise.start_time }}</td>
+                                        <td>{{ noise.end_time }}</td>
+                                        <td>{{ noise.duration_seconds|floatformat:2 }}s</td>
+                                        <td>{{ noise.frequency|floatformat:2 }}</td>
+                                        <td>{{ noise.magnitude|floatformat:2 }}</td>
+                                        <td>{{ noise.impulses }}</td>
+                                        <td>
+                                            {% if noise.clip_file %}
+                                            <button class="btn btn-sm btn-outline-primary" onclick="playAudio('{{ noise.clip_file.url }}')">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% if noise.spectrogram %}
+                                            <a href="{{ noise.spectrogram.url }}" target="_blank" class="btn btn-sm btn-outline-info">
+                                                <i class="fas fa-image"></i>
+                                            </a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-warning">
+                    <p>No saw calls detected in this audio file.</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-md-4">
+                <!-- Processing Logs -->
+                <div class="card sticky-top" style="top: 1rem;">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Processing Logs</h5>
+                        <button id="refreshLogsBtn" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="card-body" id="logsContainer" style="max-height: 600px; overflow-y: auto;">
+                        {% for log in processing_logs %}
+                            <div class="log-entry mb-2 p-2 {% if log.level == 'ERROR' %}bg-danger-subtle{% elif log.level == 'WARNING' %}bg-warning-subtle{% elif log.level == 'SUCCESS' %}bg-success-subtle{% else %}bg-info-subtle{% endif %} rounded">
+                                <div class="d-flex justify-content-between">
+                                    <span class="badge {% if log.level == 'ERROR' %}bg-danger{% elif log.level == 'WARNING' %}bg-warning{% elif log.level == 'SUCCESS' %}bg-success{% else %}bg-info{% endif %}">
+                                        {{ log.level }}
+                                    </span>
+                                    <small class="text-muted">{{ log.timestamp|date:"Y-m-d H:i:s" }}</small>
+                                </div>
+                                <p class="mb-1 mt-1">{{ log.message }}</p>
+                            </div>
+                        {% empty %}
+                            <p>No processing logs available.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-danger">
+            <p>Audio file not found.</p>
+        </div>
+        {% if request.user.user_type == '1' %}
+            <a href="{% url 'admin_home' %}" class="btn btn-primary">Back to Dashboard</a>
+        {% elif request.user.user_type == '2' %}
+            <a href="{% url 'staff_home' %}" class="btn btn-primary">Back to Dashboard</a>
+        {% endif %}
+    {% endif %}
+</div>
+
+<!-- Audio Player Modal -->
+<div class="modal fade" id="audioPlayerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Audio Player</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <audio id="audioPlayer" controls style="width: 100%;"></audio>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js for saw call distribution -->
+{% if detected_noises %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('sawCallChart').getContext('2d');
+        
+        // Extract time data from detected noises
+        const timeData = {};
+        {% for noise in detected_noises %}
+            // Extract hour from start_time
+            const startTime = "{{ noise.start_time }}";
+            const hour = startTime.split(':')[0];
+            if (timeData[hour]) {
+                timeData[hour]++;
+            } else {
+                timeData[hour] = 1;
+            }
+        {% endfor %}
+        
+        // Convert to arrays for Chart.js
+        const labels = Object.keys(timeData).sort((a, b) => parseInt(a) - parseInt(b));
+        const data = labels.map(hour => timeData[hour]);
+        
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels.map(hour => `${hour}:00`),
+                datasets: [{
+                    label: 'Saw Calls by Hour',
+                    data: data,
+                    backgroundColor: 'rgba(0, 123, 255, 0.5)',
+                    borderColor: 'rgba(0, 123, 255, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                return `Hour: ${tooltipItems[0].label}`;
+                            },
+                            label: function(context) {
+                                return `Saw Calls: ${context.raw}`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Table search functionality
+        const searchInput = document.getElementById('searchTable');
+        const table = document.getElementById('sawCallsTable');
+        const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+        
+        searchInput.addEventListener('keyup', function() {
+            const searchText = this.value.toLowerCase();
+            
+            for (let i = 0; i < rows.length; i++) {
+                const rowText = rows[i].textContent.toLowerCase();
+                rows[i].style.display = rowText.includes(searchText) ? '' : 'none';
+            }
+        });
+    });
+    
+    // Function to play audio
+    function playAudio(audioPath) {
+        const audioPlayer = document.getElementById('audioPlayer');
+        audioPlayer.src = audioPath;
+        const modal = new bootstrap.Modal(document.getElementById('audioPlayerModal'));
+        modal.show();
+        audioPlayer.play();
+    }
+    
+    // Real-time log updates
+    document.addEventListener('DOMContentLoaded', function() {
+        const refreshLogsBtn = document.getElementById('refreshLogsBtn');
+        const logsContainer = document.getElementById('logsContainer');
+        const fileId = {{ original_file.id }};
+        
+        // Function to fetch and update logs
+        function fetchLogs() {
+            fetch(`/vocalization_management_app/api/get_file_logs/${fileId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateLogsDisplay(data.data);
+                    } else {
+                        console.error('Error fetching logs:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching logs:', error);
+                });
+        }
+        
+        // Function to update the logs display
+        function updateLogsDisplay(logs) {
+            if (logs.length === 0) {
+                logsContainer.innerHTML = '<p>No processing logs available.</p>';
+                return;
+            }
+            
+            let logsHtml = '';
+            
+            logs.forEach(log => {
+                // Determine badge class based on log level
+                let badgeClass = 'bg-info';
+                let bgClass = 'bg-info-subtle';
+                
+                if (log.level === 'ERROR') {
+                    badgeClass = 'bg-danger';
+                    bgClass = 'bg-danger-subtle';
+                } else if (log.level === 'WARNING') {
+                    badgeClass = 'bg-warning';
+                    bgClass = 'bg-warning-subtle';
+                } else if (log.level === 'SUCCESS') {
+                    badgeClass = 'bg-success';
+                    bgClass = 'bg-success-subtle';
+                }
+                
+                // Highlight logs with new metadata
+                let highlightClass = '';
+                if (log.contains_timestamp || log.contains_frequency || log.contains_magnitude || log.contains_impulses) {
+                    highlightClass = 'border border-primary';
+                }
+                
+                // Format the log message to highlight new metadata
+                let message = log.message;
+                if (log.contains_timestamp) {
+                    // Highlight timestamp information
+                    message = message.replace(/(Start=\d{2}:\d{2}:\d{2}\.\d{2})/g, '<span class="text-primary fw-bold">$1</span>');
+                    message = message.replace(/(End=\d{2}:\d{2}:\d{2}\.\d{2})/g, '<span class="text-primary fw-bold">$1</span>');
+                    message = message.replace(/(Duration=\d+\.\d+s)/g, '<span class="text-primary fw-bold">$1</span>');
+                }
+                if (log.contains_frequency) {
+                    // Highlight frequency information
+                    message = message.replace(/(Freq=\d+\.\d+Hz)/g, '<span class="text-success fw-bold">$1</span>');
+                }
+                if (log.contains_magnitude) {
+                    // Highlight magnitude information
+                    message = message.replace(/(Mag=\d+\.\d+)/g, '<span class="text-info fw-bold">$1</span>');
+                }
+                if (log.contains_impulses) {
+                    // Highlight impulses information
+                    message = message.replace(/(Impulses=\d+)/g, '<span class="text-warning fw-bold">$1</span>');
+                }
+                
+                logsHtml += `
+                    <div class="log-entry mb-2 p-2 ${bgClass} rounded ${highlightClass}">
+                        <div class="d-flex justify-content-between">
+                            <span class="badge ${badgeClass}">${log.level}</span>
+                            <small class="text-muted">${log.timestamp}</small>
+                        </div>
+                        <p class="mb-1 mt-1">${message}</p>
+                    </div>
+                `;
+            });
+            
+            logsContainer.innerHTML = logsHtml;
+        }
+        
+        // Add event listener for refresh button
+        if (refreshLogsBtn) {
+            refreshLogsBtn.addEventListener('click', function() {
+                refreshLogsBtn.disabled = true;
+                refreshLogsBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+                
+                fetchLogs();
+                
+                setTimeout(() => {
+                    refreshLogsBtn.disabled = false;
+                    refreshLogsBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+                }, 1000);
+            });
+        }
+        
+        // Initial fetch
+        fetchLogs();
+        
+        // Auto-refresh every 10 seconds if the file is being processed
+        {% if processing_status.status == 'Processing' %}
+        const autoRefreshInterval = setInterval(function() {
+            fetchLogs();
+            
+            // Check if processing is complete
+            fetch(`/vocalization_management_app/api/get_status/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const processingFiles = data.data.processing_files_details || [];
+                        const isStillProcessing = processingFiles.some(function(file) {
+                            return file.id === fileId;
+                        });
+                        
+                        if (!isStillProcessing) {
+                            // If processing is complete, reload the page
+                            clearInterval(autoRefreshInterval);
+                            location.reload();
+                        }
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Error checking processing status:', error);
+                });
+        }, 10000);
+        {% endif %}
+    });
+</script>
+{% endif %}
+{% endblock %}

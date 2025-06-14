@@ -1,0 +1,454 @@
+{% comment %}
+Partial template for displaying audio file processing status
+This can be included in admin and staff dashboards
+{% endcomment %}
+
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-tasks me-2"></i>Audio Processing Status
+        </h5>
+        <span class="badge {% if processor_status == 'Running' %}bg-success{% else %}bg-warning{% endif %} p-2">
+            Processor: {{ processor_status }}
+        </span>
+    </div>
+    <div class="card-body">
+        <!-- Processing Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-2">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h3 class="text-primary" id="total-files-count">{{ total_files }}</h3>
+                        <p class="mb-0">Total Files</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h3 class="text-warning" id="pending-files-count">{{ pending_files }}</h3>
+                        <p class="mb-0">Pending</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h3 class="text-info" id="processing-files-count">{{ processing_files }}</h3>
+                        <p class="mb-0">Processing</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h3 class="text-success" id="processed-files-count">{{ processed_files }}</h3>
+                        <p class="mb-0">Processed</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h3 class="text-danger" id="failed-files-count">{{ failed_files }}</h3>
+                        <p class="mb-0">Failed</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h3 class="text-secondary" id="untracked-files-count">{{ untracked_files }}</h3>
+                        <p class="mb-0">Untracked</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Currently Processing Files -->
+        {% if processing_files_details %}
+        <div class="mb-4">
+            <h6 class="border-bottom pb-2 mb-3">Currently Processing</h6>
+            <div class="list-group">
+                {% for file in processing_files_details %}
+                <div class="list-group-item">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">{{ file.audio_file.audio_file_name }}</h6>
+                        <small>Started: {{ file.processing_start_time|date:"H:i:s" }}</small>
+                    </div>
+                    <div class="progress mt-2" style="height: 10px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 100%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Pending Files -->
+        {% if pending_files_details %}
+        <div class="mb-4">
+            <h6 class="border-bottom pb-2 mb-3">Pending Files ({{ pending_files_details.count }})</h6>
+            <div class="list-group">
+                {% for file in pending_files_details|slice:":5" %}
+                <div class="list-group-item">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">{{ file.audio_file.audio_file_name }}</h6>
+                        <small>Uploaded: {{ file.audio_file.upload_date|date:"Y-m-d H:i" }}</small>
+                    </div>
+                    <p class="mb-1 text-muted small">Waiting to be processed...</p>
+                </div>
+                {% endfor %}
+                {% if pending_files_details.count > 5 %}
+                <div class="list-group-item text-center text-muted">
+                    <small>+ {{ pending_files_details.count|add:"-5" }} more pending files</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Processing Controls -->
+        <div class="d-flex justify-content-between">
+            <a href="{% if user.user_type == '1' %}{% url 'process_audio_files' %}{% else %}{% url 'staff_process_audio_files' %}{% endif %}" 
+               class="btn btn-primary {% if pending_files == 0 %}disabled{% endif %}">
+                <i class="fas fa-play me-2"></i>Process Pending Files
+            </a>
+            
+            <div>
+                <a href="#" class="btn btn-outline-success" id="startProcessorBtn" 
+                   {% if processor_status == 'Running' %}style="display: none;"{% endif %}>
+                    <i class="fas fa-power-off me-2"></i>Start Background Processor
+                </a>
+                <a href="#" class="btn btn-outline-danger" id="stopProcessorBtn"
+                   {% if processor_status == 'Stopped' %}style="display: none;"{% endif %}>
+                    <i class="fas fa-stop-circle me-2"></i>Stop Background Processor
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for controlling the background processor -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const startBtn = document.getElementById('startProcessorBtn');
+        const stopBtn = document.getElementById('stopProcessorBtn');
+        const refreshLogsBtn = document.getElementById('refreshLogsBtn');
+        const logsContainer = document.getElementById('logsContainer');
+        
+        // Function to fetch and update logs
+        function fetchRecentLogs() {
+            fetch('/vocalization_management_app/api/get_recent_logs/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateLogsDisplay(data.data);
+                    } else {
+                        console.error('Error fetching logs:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching logs:', error);
+                });
+        }
+        
+        // Function to format date and time for display
+        function formatDateTime(dateTimeStr) {
+            const date = new Date(dateTimeStr);
+            
+            // Format the date and time in a user-friendly way
+            const options = { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: true
+            };
+            
+            return date.toLocaleString('en-US', options);
+        }
+        
+        // Function to update the logs display
+        function updateLogsDisplay(logs) {
+            if (logs.length === 0) {
+                logsContainer.innerHTML = '<div class="list-group-item text-center text-muted py-3"><p class="mb-0">No processing logs available</p></div>';
+                return;
+            }
+            
+            let logsHtml = '<div class="list-group list-group-flush">';
+            
+            logs.forEach(log => {
+                // Determine badge class based on log level
+                let badgeClass = 'bg-info';
+                
+                if (log.level === 'ERROR') {
+                    badgeClass = 'bg-danger';
+                } else if (log.level === 'WARNING') {
+                    badgeClass = 'bg-warning';
+                } else if (log.level === 'SUCCESS') {
+                    badgeClass = 'bg-success';
+                }
+                
+                // Format the log message to highlight new metadata
+                let message = log.message;
+                if (log.contains_timestamp) {
+                    // Highlight timestamp information
+                    message = message.replace(/(Start=\d{2}:\d{2}:\d{2}\.\d{2})/g, '<span class="text-primary fw-bold">$1</span>');
+                    message = message.replace(/(End=\d{2}:\d{2}:\d{2}\.\d{2})/g, '<span class="text-primary fw-bold">$1</span>');
+                    message = message.replace(/(Duration=\d+\.\d+s)/g, '<span class="text-primary fw-bold">$1</span>');
+                }
+                if (log.contains_frequency) {
+                    // Highlight frequency information
+                    message = message.replace(/(Freq=\d+\.\d+Hz)/g, '<span class="text-success fw-bold">$1</span>');
+                }
+                if (log.contains_magnitude) {
+                    // Highlight magnitude information
+                    message = message.replace(/(Mag=\d+\.\d+)/g, '<span class="text-info fw-bold">$1</span>');
+                }
+                if (log.contains_impulses) {
+                    // Highlight impulses information
+                    message = message.replace(/(Impulses=\d+)/g, '<span class="text-warning fw-bold">$1</span>');
+                }
+                
+                logsHtml += `
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">
+                                <span class="badge ${badgeClass} me-2">${log.level}</span>
+                                ${log.file_name ? log.file_name.substring(0, 30) : 'System'}
+                            </h6>
+                            <small>${formatDateTime(log.timestamp)}</small>
+                        </div>
+                        <p class="mb-1">${message}</p>
+                    </div>
+                `;
+            });
+            
+            logsHtml += '</div>';
+            logsContainer.innerHTML = logsHtml;
+        }
+        
+        // Add event listener for refresh button
+        if (refreshLogsBtn) {
+            refreshLogsBtn.addEventListener('click', function() {
+                refreshLogsBtn.disabled = true;
+                refreshLogsBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+                
+                fetchRecentLogs();
+                
+                setTimeout(() => {
+                    refreshLogsBtn.disabled = false;
+                    refreshLogsBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+                }, 1000);
+            });
+        }
+        
+        if (startBtn) {
+            startBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                fetch('/vocalization_management_app/api/start_processor/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        startBtn.style.display = 'none';
+                        stopBtn.style.display = 'inline-block';
+                        // Reload the page to update status
+                        setTimeout(() => location.reload(), 1000);
+                    }
+                });
+            });
+        }
+        
+        if (stopBtn) {
+            stopBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                fetch('/vocalization_management_app/api/stop_processor/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        stopBtn.style.display = 'none';
+                        startBtn.style.display = 'inline-block';
+                        // Reload the page to update status
+                        setTimeout(() => location.reload(), 1000);
+                    }
+                });
+            });
+        }
+        
+        // Helper function to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // Initial fetch of logs
+        fetchRecentLogs();
+        
+        // Auto-refresh every 3 seconds
+        const autoRefreshInterval = setInterval(() => {
+            // Always fetch the latest logs
+            fetchRecentLogs();
+            
+            // Update the processing status without page reload
+            fetch('/vocalization_management_app/api/get_status/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const currentStatus = data.data;
+                        
+                        // Update the status counters dynamically using the IDs
+                        document.getElementById('total-files-count').textContent = currentStatus.total;
+                        document.getElementById('pending-files-count').textContent = currentStatus.pending;
+                        document.getElementById('processing-files-count').textContent = currentStatus.processing;
+                        document.getElementById('processed-files-count').textContent = currentStatus.processed;
+                        document.getElementById('failed-files-count').textContent = currentStatus.failed;
+                        document.getElementById('untracked-files-count').textContent = currentStatus.untracked;
+                        
+                        // Calculate verification total to check if counts match
+                        const calculatedTotal = currentStatus.pending + currentStatus.processing + 
+                                               currentStatus.processed + currentStatus.failed + 
+                                               currentStatus.untracked;
+                        
+                        // If there's a mismatch, add a visual indicator
+                        if (calculatedTotal !== currentStatus.total) {
+                            console.warn('Count mismatch detected:', {
+                                total: currentStatus.total,
+                                calculated: calculatedTotal,
+                                difference: currentStatus.total - calculatedTotal
+                            });
+                        }
+                        
+                        // Update processor status badge
+                        const processorBadge = document.querySelector('.card-header .badge');
+                        if (processorBadge) {
+                            if (currentStatus.processor_status === 'Running') {
+                                processorBadge.className = 'badge bg-success p-2';
+                                processorBadge.textContent = 'Processor: Running';
+                                document.getElementById('startProcessorBtn').style.display = 'none';
+                                document.getElementById('stopProcessorBtn').style.display = 'inline-block';
+                            } else {
+                                processorBadge.className = 'badge bg-warning p-2';
+                                processorBadge.textContent = 'Processor: Stopped';
+                                document.getElementById('startProcessorBtn').style.display = 'inline-block';
+                                document.getElementById('stopProcessorBtn').style.display = 'none';
+                            }
+                        }
+                        
+                        // Check if there's been a significant status change
+                        const processingComplete = currentStatus.processing === 0 && 
+                                                 currentStatus.processed > 0 && 
+                                                 currentStatus.pending === 0;
+                        
+                        // If processing is complete, update the processed audio files section
+                        if (processingComplete) {
+                            console.log('Processing complete, updating processed files section...');
+                            // Fetch and update the processed files section
+                            updateProcessedFilesSection();
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking processing status:', error);
+                });
+        }, 3000);
+        
+        // Function to update the processed files section
+        function updateProcessedFilesSection() {
+            // Fetch the processed files data from the API
+            fetch('/vocalization_management_app/api/get_processed_files/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const processedFiles = data.data;
+                        console.log('Fetched processed files:', processedFiles.length);
+                        
+                        // Get the processed files container
+                        const processedFilesContainer = document.querySelector('#processed-files-section .card-body');
+                        if (processedFilesContainer) {
+                            // If there are processed files, update the table
+                            if (processedFiles.length > 0) {
+                                let tableHtml = `
+                                    <div class="table-responsive">
+                                        <table class="table table-striped table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>File ID</th>
+                                                    <th>File Name</th>
+                                                    <th>Animal Type</th>
+                                                    <th>Upload Date</th>
+                                                    <th>Processing Date</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                `;
+                                
+                                processedFiles.forEach(file => {
+                                    tableHtml += `
+                                        <tr>
+                                            <td>${file.id}</td>
+                                            <td>${file.file_name}</td>
+                                            <td>${file.animal_type || 'Unknown'}</td>
+                                            <td>${file.upload_date}</td>
+                                            <td>${file.processing_end_time || 'N/A'}</td>
+                                            <td>
+                                                <a href="/vocalization_management_app/view_analysis/${file.id}/" class="btn btn-sm btn-primary">
+                                                    <i class="fas fa-chart-line"></i> Analysis
+                                                </a>
+                                                <a href="/vocalization_management_app/view_spectrograms/${file.id}/" class="btn btn-sm btn-info">
+                                                    <i class="fas fa-image"></i> Spectrograms
+                                                </a>
+                                                <a href="/vocalization_management_app/download_excel/${file.id}/" class="btn btn-sm btn-success">
+                                                    <i class="fas fa-file-excel"></i> Excel
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    `;
+                                });
+                                
+                                tableHtml += `
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                `;
+                                
+                                processedFilesContainer.innerHTML = tableHtml;
+                                console.log('Processed files section updated successfully');
+                            } else {
+                                processedFilesContainer.innerHTML = '<p class="text-muted">No processed audio files found.</p>';
+                            }
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating processed files section:', error);
+                });
+        }
+    });
+</script>

@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block custom_css %}
+<style>
+    .zoo-card {
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        transition: transform 0.3s;
+    }
+    
+    .zoo-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .card-header {
+        border-radius: 10px 10px 0 0 !important;
+    }
+    
+    .animal-count {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1 class="m-0">{{ page_title }}</h1>
+                    <a href="{% url 'add_zoo' %}" class="btn btn-primary">
+                        <i class="fas fa-plus-circle"></i> Add New Zoo
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            {% if zoos %}
+                {% for zoo in zoos %}
+                <div class="col-md-4">
+                    <div class="card zoo-card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="card-title mb-0">{{ zoo.zoo_name }}</h5>
+                            <span class="badge badge-light animal-count">
+                                {{ zoo.animals.count }} Animals
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Location:</strong> {{ zoo.location|default:"Not specified" }}</p>
+                            <p><strong>Contact:</strong> {{ zoo.contact_email }}</p>
+                            <p><strong>Animals:</strong></p>
+                            <ul>
+                                {% for animal in zoo.animals.all %}
+                                <li>{{ animal.species_name }}</li>
+                                {% empty %}
+                                <li>No animals registered</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex justify-content-between">
+                                <a href="{% url 'edit_zoo' zoo.zoo_id %}" class="btn btn-info btn-sm">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                                <a href="{% url 'delete_zoo' zoo.zoo_id %}" class="btn btn-danger btn-sm">
+                                    <i class="fas fa-trash"></i> Delete
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h5><i class="icon fas fa-info"></i> No zoos found</h5>
+                        <p>There are no zoos in the database. Click the "Add New Zoo" button to create one.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    {% if original_file %}
+        <h2>Extracted Clips - {{ original_file.audio_file_name }}</h2>
+        
+        <!-- Processing Status -->
+        {% if processing_status %}
+            <div class="alert {% if processing_status.status == 'Processed' %}alert-success{% elif processing_status.status == 'Failed' %}alert-danger{% else %}alert-info{% endif %}">
+                Status: {{ processing_status.status }}
+            </div>
+        {% endif %}
+        
+        <!-- Full Audio Spectrogram -->
+        {% if full_spectrogram %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Full Audio Spectrogram</h4>
+                </div>
+                <div class="card-body">
+                    <img src="{{ full_spectrogram.image_path.url }}" class="img-fluid" alt="Full Audio Spectrogram">
+                </div>
+            </div>
+        {% endif %}
+        
+        <!-- Extracted Clips -->
+        <h3>Extracted Saw Calls</h3>
+        <div class="row">
+            {% for spec in clip_spectrograms %}
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Clip {{ forloop.counter }} ({{ spec.clip_start_time|floatformat:2 }}s - {{ spec.clip_end_time|floatformat:2 }}s)</h5>
+                        </div>
+                        <div class="card-body">
+                            <img src="{{ spec.image_path.url }}" class="img-fluid" alt="Clip Spectrogram">
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        No saw calls detected in this audio file.
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+    {% else %}
+        <h2>Processed Audio Files</h2>
+        <div class="list-group">
+            {% for file in processed_files %}
+                <a href="{% url 'view_extracted_clips' file.file_id %}" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">{{ file.audio_file_name }}</h5>
+                        <small>{{ file.upload_date|date:"Y-m-d H:i" }}</small>
+                    </div>
+                    <p class="mb-1">{{ file.animal_type }}</p>
+                    <small>Uploaded by: {{ file.uploaded_by.user.full_name }}</small>
+                </a>
+            {% empty %}
+                <div class="alert alert-info">
+                    No processed audio files found.
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

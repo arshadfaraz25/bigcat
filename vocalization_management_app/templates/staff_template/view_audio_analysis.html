@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="text-center text-warning">View Audio Analysis</h2>
+
+    <div class="card shadow p-4 mt-4">
+        <h4 class="text-primary">Audio Visualization</h4>
+        <p>Select an audio file to analyze.</p>
+
+        <form method="POST">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">Select Audio File</label>
+                <select name="audio_file" class="form-control">
+                    {% for file in audio_files %}
+                    <option value="{{ file.id }}">{{ file.file_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-success">Analyze</button>
+        </form>
+    </div>
+
+    <div class="mt-4">
+        <h4 class="text-danger">Spectrogram</h4>
+        <img src="{{ spectrogram_url }}" alt="Spectrogram" class="img-fluid shadow">
+
+        <h4 class="text-danger mt-4">Waveform</h4>
+        <img src="{{ waveform_url }}" alt="Waveform" class="img-fluid shadow">
+
+        <h4 class="text-danger mt-4">Time Plot</h4>
+        <img src="{{ time_plot_url }}" alt="Time Plot" class="img-fluid shadow">
+    </div>
+</div>
+{% endblock %}

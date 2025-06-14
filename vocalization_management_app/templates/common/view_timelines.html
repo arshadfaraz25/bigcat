@@ -1,0 +1,357 @@
+{% extends 'base.html' %}
+
+{% block title %}View Timelines{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2 class="mb-0">View Timelines</h2>
+        </div>
+        <div class="card-body">
+            <form id="timeline-form" class="needs-validation" novalidate>
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <h5 class="border-bottom pb-2">Filter Options</h5>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="animal_type" class="form-label">Select Animal Type</label>
+                        <select id="animal_type" name="animal_type" class="form-select">
+                            <option value="" selected>All Animal Types</option>
+                            {% for id, name in animal_types %}
+                                <option value="{{ id }}">{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="zoo" class="form-label">Select Zoo</label>
+                        <select id="zoo" name="zoo" class="form-select">
+                            <option value="" selected>All Zoos</option>
+                            {% for zoo in zoos %}
+                                <option value="{{ zoo.id }}">{{ zoo.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <h5 class="border-bottom pb-2">Date Range Type</h5>
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="date_type" id="recording_date_type" value="recording" checked>
+                            <label class="form-check-label" for="recording_date_type">
+                                <i class="fas fa-microphone me-1 text-primary"></i> Recording Date
+                                <small class="text-muted">(When the audio was recorded)</small>
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="date_type" id="upload_date_type" value="upload">
+                            <label class="form-check-label" for="upload_date_type">
+                                <i class="fas fa-cloud-upload-alt me-1 text-success"></i> Upload Date
+                                <small class="text-muted">(When the audio was uploaded)</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3" id="date_range_container">
+                    <div class="col-12">
+                        <h5 class="border-bottom pb-2 text-primary">
+                            <i class="fas fa-calendar-alt me-2"></i>Date Range
+                        </h5>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="start_date" class="form-label">Start Date</label>
+                        <input type="date" id="start_date" name="start_date" class="form-control" required>
+                        <div class="invalid-feedback">
+                            Please select a start date.
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="end_date" class="form-label">End Date</label>
+                        <input type="date" id="end_date" name="end_date" class="form-control" required>
+                        <div class="invalid-feedback">
+                            Please select an end date.
+                        </div>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-clock me-2"></i>Generate Timeline
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="timeline-container" class="mt-4">
+        <div class="card">
+            <div class="card-body">
+                <div id="timeline-placeholder" class="text-center text-muted py-5">
+                    <i class="fas fa-timeline fa-3x mb-3"></i>
+                    <h4>Timeline will appear here</h4>
+                    <p>Select the parameters above and click "Generate Timeline" to view the data.</p>
+                </div>
+                <div id="timeline-content" style="display: none;">
+                    <!-- Timeline will be dynamically inserted here -->
+
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Include Plotly.js for interactive charts -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Form validation
+        const form = document.getElementById('timeline-form');
+        const startDate = document.getElementById('start_date');
+        const endDate = document.getElementById('end_date');
+        const animalType = document.getElementById('animal_type');
+        const zoo = document.getElementById('zoo');
+        
+        // Set default dates (last 30 days)
+        const today = new Date();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        
+        startDate.value = thirtyDaysAgo.toISOString().split('T')[0];
+        endDate.value = today.toISOString().split('T')[0];
+
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            if (!form.checkValidity()) {
+                event.stopPropagation();
+            } else {
+                // Hide placeholder and show loading state
+                document.getElementById('timeline-placeholder').style.display = 'none';
+                document.getElementById('timeline-content').style.display = 'block';
+                document.getElementById('timeline-content').innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+                
+                // Get the date type selection
+                const dateType = document.querySelector('input[name="date_type"]:checked').value;
+                
+                // Build parameters based on date type
+                const params = new URLSearchParams({
+                    animal_type: animalType.value,
+                    zoo_id: zoo.value,
+                    date_type: dateType
+                });
+                
+                // Add date parameters based on selected date type
+                if (dateType === 'recording') {
+                    // Use the dates as recording dates
+                    params.append('start_date', startDate.value);
+                    params.append('end_date', endDate.value);
+                } else {
+                    // Use the dates as upload dates
+                    params.append('upload_start_date', startDate.value);
+                    params.append('upload_end_date', endDate.value);
+                }
+                
+                // Fetch the timeplot data from the API
+                fetch(`/vocalization_management_app/api/get_timeplot_data/?${params.toString()}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            renderTimeplot(data.data);
+                        } else {
+                            showError(data.message || 'Failed to fetch timeplot data');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching timeplot data:', error);
+                        showError('An error occurred while fetching the data. Please try again.');
+                    });
+            }
+            
+            form.classList.add('was-validated');
+        });
+
+        // Date validation
+        endDate.addEventListener('change', function() {
+            if (startDate.value && endDate.value) {
+                if (new Date(endDate.value) < new Date(startDate.value)) {
+                    endDate.setCustomValidity('End date must be after start date');
+                } else {
+                    endDate.setCustomValidity('');
+                }
+            }
+        });
+        
+        // Function to render the timeplot
+        function renderTimeplot(data) {
+            const timelineContent = document.getElementById('timeline-content');
+            
+            // Clear previous content
+            timelineContent.innerHTML = '';
+            
+            // Check if we have data
+            if (!data || data.length === 0) {
+                timelineContent.innerHTML = `
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        No data available for the selected criteria. Try adjusting your filters.
+                    </div>
+                `;
+                return;
+            }
+            
+            // Create container for the plot
+            const plotContainer = document.createElement('div');
+            plotContainer.id = 'timeplot';
+            plotContainer.style.width = '100%';
+            plotContainer.style.height = '500px';
+            timelineContent.appendChild(plotContainer);
+            
+            // Prepare data for Plotly
+            const dates = data.map(item => item.date);
+            const sawCounts = data.map(item => item.saw_count);
+            const fileCounts = data.map(item => item.file_count);
+            
+            // Create the saw count trace
+            const sawTrace = {
+                x: dates,
+                y: sawCounts,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Saw Calls',
+                line: {
+                    color: '#007bff',
+                    width: 3
+                },
+                marker: {
+                    size: 8,
+                    color: '#007bff'
+                }
+            };
+            
+            // Create the file count trace
+            const fileTrace = {
+                x: dates,
+                y: fileCounts,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Audio Files',
+                yaxis: 'y2',
+                line: {
+                    color: '#28a745',
+                    width: 2,
+                    dash: 'dot'
+                },
+                marker: {
+                    size: 6,
+                    color: '#28a745'
+                }
+            };
+            
+            // Layout configuration
+            const layout = {
+                title: 'Saw Calls Over Time',
+                xaxis: {
+                    title: 'Date',
+                    tickangle: -45
+                },
+                yaxis: {
+                    title: 'Number of Saw Calls',
+                    titlefont: {color: '#007bff'},
+                    tickfont: {color: '#007bff'}
+                },
+                yaxis2: {
+                    title: 'Number of Audio Files',
+                    titlefont: {color: '#28a745'},
+                    tickfont: {color: '#28a745'},
+                    overlaying: 'y',
+                    side: 'right'
+                },
+                legend: {
+                    x: 0.1,
+                    y: 1.1,
+                    orientation: 'h'
+                },
+                margin: {
+                    l: 50,
+                    r: 50,
+                    b: 100,
+                    t: 80,
+                    pad: 4
+                },
+                hovermode: 'closest'
+            };
+            
+            // Create the plot
+            Plotly.newPlot('timeplot', [sawTrace, fileTrace], layout);
+            
+            // Add data summary below the chart
+            const totalSaws = sawCounts.reduce((sum, count) => sum + count, 0);
+            const totalFiles = fileCounts.reduce((sum, count) => sum + count, 0);
+            const avgSawsPerDay = totalSaws / dates.length;
+            
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'mt-4 p-3 bg-light rounded';
+            summaryDiv.innerHTML = `
+                <h4>Summary Statistics</h4>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Total Saw Calls</h5>
+                                <p class="card-text display-4">${totalSaws}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Total Audio Files</h5>
+                                <p class="card-text display-4">${totalFiles}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Avg. Calls Per Day</h5>
+                                <p class="card-text display-4">${avgSawsPerDay.toFixed(1)}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-dark">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Date Range</h5>
+                                <p class="card-text">${dates[0]} to ${dates[dates.length - 1]}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            timelineContent.appendChild(summaryDiv);
+        }
+        
+        // Function to show error messages
+        function showError(message) {
+            const timelineContent = document.getElementById('timeline-content');
+            timelineContent.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${message}
+                </div>
+            `;
+        }
+        
+        // Trigger form submission on initial load to show default data
+        setTimeout(() => {
+            form.dispatchEvent(new Event('submit'));
+        }, 500);
+    });
+</script>
+{% endblock %}

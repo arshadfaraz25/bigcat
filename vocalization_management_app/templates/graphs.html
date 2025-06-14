@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Graphs{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <!-- Controls Section -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 d-flex align-items-center gap-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="spectrographCheck">
+                                <label class="form-check-label" for="spectrographCheck">
+                                    Spectrogram
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="fourierCheck">
+                                <label class="form-check-label" for="fourierCheck">
+                                    Fourier Transform
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="date-range-selector">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="dateType" id="currentDay" checked>
+                                    <label class="form-check-label" for="currentDay">
+                                        Current Day
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="dateType" id="dateRange">
+                                    <label class="form-check-label" for="dateRange">
+                                        Date Range
+                                    </label>
+                                </div>
+                                <div id="dateRangeInputs" class="d-none">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label for="startDate" class="form-label">Start Date:</label>
+                                            <input type="date" class="form-control" id="startDate">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="endDate" class="form-label">End Date:</label>
+                                            <input type="date" class="form-control" id="endDate">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graph Display Section -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <div id="graphsContainer" class="row">
+                        <!-- Graphs will be dynamically inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Include Plotly.js for graph rendering -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<script>
+    // DOM Elements
+    const graphsContainer = document.getElementById('graphsContainer');
+    const currentDayRadio = document.getElementById('currentDay');
+    const dateRangeRadio = document.getElementById('dateRange');
+    const dateRangeInputs = document.getElementById('dateRangeInputs');
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+
+    // Event listeners
+    document.getElementById('spectrographCheck').addEventListener('change', updateGraphs);
+    document.getElementById('fourierCheck').addEventListener('change', updateGraphs);
+    currentDayRadio.addEventListener('change', handleDateTypeChange);
+    dateRangeRadio.addEventListener('change', handleDateTypeChange);
+    startDateInput.addEventListener('change', validateDateRange);
+    endDateInput.addEventListener('change', validateDateRange);
+
+    // Initialize date inputs
+    const today = new Date();
+    const twoWeeksAgo = new Date(today);
+    twoWeeksAgo.setDate(today.getDate() - 14);
+
+    startDateInput.valueAsDate = twoWeeksAgo;
+    endDateInput.valueAsDate = today;
+    startDateInput.max = today.toISOString().split('T')[0];
+    endDateInput.max = today.toISOString().split('T')[0];
+
+    function handleDateTypeChange() {
+        dateRangeInputs.classList.toggle('d-none', currentDayRadio.checked);
+        updateGraphs();
+    }
+
+    function validateDateRange() {
+        const start = new Date(startDateInput.value);
+        const end = new Date(endDateInput.value);
+        const maxRange = new Date(start);
+        maxRange.setDate(start.getDate() + 14);
+
+        if (end > maxRange) {
+            endDateInput.valueAsDate = maxRange;
+        }
+        if (end < start) {
+            endDateInput.valueAsDate = start;
+        }
+        updateGraphs();
+    }
+
+    function createGraphDiv(id, title) {
+        const graphCount = document.querySelectorAll('.graph-container').length;
+        const colClass = graphCount > 0 ? 'col-md-6' : 'col-md-12';
+        
+        const div = document.createElement('div');
+        div.className = `graph-container ${colClass} mb-4`;
+        div.innerHTML = `
+            <div class="graph" id="${id}" style="width: 100%; height: 400px;"></div>
+            <div class="text-center mt-2"><strong>${title}</strong></div>
+            <!-- Placeholder for manual data integration -->
+            <div class="graph-data-placeholder mt-2 text-muted">
+                <small>Data integration placeholder for ${title}</small>
+            </div>
+        `;
+        return div;
+    }
+
+    function updateGraphs() {
+        const showSpectrograph = document.getElementById('spectrographCheck').checked;
+        const showFourier = document.getElementById('fourierCheck').checked;
+        
+        // Clear existing graphs
+        graphsContainer.innerHTML = '';
+
+        // Prepare date parameters
+        let dateParams;
+        if (currentDayRadio.checked) {
+            dateParams = `date=${today.toISOString().split('T')[0]}`;
+        } else {
+            dateParams = `startDate=${startDateInput.value}&endDate=${endDateInput.value}`;
+        }
+
+        // Add graphs based on selection
+        if (showSpectrograph) {
+            const spectrogramDiv = createGraphDiv('spectrogram', 'Spectrogram Analysis');
+            graphsContainer.appendChild(spectrogramDiv);
+            
+            // Placeholder spectrogram data
+            const spectrogramData = {
+                z: [[]], // Will be populated with actual data
+                type: 'heatmap',
+                colorscale: 'Viridis'
+            };
+            
+            Plotly.newPlot('spectrogram', [spectrogramData], {
+                title: 'Spectrogram',
+                margin: { t: 50, b: 50, l: 50, r: 50 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)'
+            });
+        }
+
+        if (showFourier) {
+            const fourierDiv = createGraphDiv('fourier', 'Fourier Transform Analysis');
+            graphsContainer.appendChild(fourierDiv);
+            
+            // Placeholder Fourier data
+            const fourierData = {
+                x: [], // Will be populated with actual data
+                y: [], // Will be populated with actual data
+                type: 'scatter',
+                mode: 'lines'
+            };
+            
+            Plotly.newPlot('fourier', [fourierData], {
+                title: 'Fourier Transform',
+                margin: { t: 50, b: 50, l: 50, r: 50 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)'
+            });
+        }
+
+        if (!showSpectrograph && !showFourier) {
+            graphsContainer.innerHTML = '<div class="col-12 text-center p-5">Please select at least one graph type to display</div>';
+        }
+    }
+
+    // Initialize with empty display
+    updateGraphs();
+</script>
+{% endblock %}

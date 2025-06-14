@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Processed Audio Files</h2>
+
+<table>
+    <tr>
+        <th>File Name</th>
+        <th>Spectrogram</th>
+        <th>Waveform</th>
+    </tr>
+    {% for audio in audio_files %}
+    <tr>
+        <td>{{ audio.audio_file_name }}</td>
+        <td>
+            <img src="{{ audio.spectrograms.first.image_path.url }}" width="150">
+        </td>
+        <td>
+            <img src="{{ audio.waveforms.first.image_path.url }}" width="150">
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

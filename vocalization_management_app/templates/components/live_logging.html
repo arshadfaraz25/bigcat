@@ -1,0 +1,105 @@
+<!-- Processing Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-file-audio me-2"></i>Total Files
+                </h5>
+                <h3 class="mb-0">{{ total_files }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-cogs me-2"></i>Processing
+                </h5>
+                <h3 class="mb-0">{{ processing_files }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-check-circle me-2"></i>Processed
+                </h5>
+                <h3 class="mb-0">{{ processed_files }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-exclamation-circle me-2"></i>Failed
+                </h5>
+                <h3 class="mb-0">{{ failed_files }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Live Processing Status -->
+<div class="row">
+    <!-- Currently Processing Files -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-sync-alt me-2"></i>Currently Processing
+                </h5>
+            </div>
+            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                {% if processing_files_details %}
+                    {% for entry in processing_files_details %}
+                        <div class="processing-file mb-3">
+                            <h6>{{ entry.audio_file.audio_file_name }}</h6>
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" 
+                                     style="width: 100%"></div>
+                            </div>
+                            <small class="text-muted">
+                                Started: {{ entry.audio_file.upload_date|timesince }} ago
+                            </small>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">No files currently being processed</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Processing Logs -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-history me-2"></i>Recent Processing Logs
+                </h5>
+            </div>
+            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                {% if recent_logs %}
+                    {% for log in recent_logs %}
+                        <div class="log-entry mb-3">
+                            <span class="badge {% if log.level == 'ERROR' %}bg-danger{% elif log.level == 'WARNING' %}bg-warning{% elif log.level == 'SUCCESS' %}bg-success{% else %}bg-info{% endif %}">
+                                {{ log.level }}
+                            </span>
+                            <small class="text-muted">{{ log.timestamp|date:"Y-m-d H:i:s" }}</small>
+                            <p class="mb-1">
+                                <strong>{{ log.audio_file.audio_file_name }}</strong>
+                                {{ log.message }}
+                            </p>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">No recent processing logs</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

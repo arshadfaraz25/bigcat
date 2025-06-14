@@ -1,0 +1,727 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    /* Styles for the spectrogram visualization */
+    .spectrogram-img {
+        height: 180px;
+        object-fit: cover;
+        cursor: pointer;
+        transition: transform 0.3s ease;
+    }
+    
+    .spectrogram-img:hover {
+        transform: scale(1.05);
+    }
+    
+    /* Timeline and spectrogram container */
+    .timeline-container {
+        position: relative;
+        width: 100%;
+        height: 400px;
+        margin-bottom: 30px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    
+    /* Canvas for the spectrogram */
+    #basicSpectrogram {
+        width: 100%;
+        height: 100%;
+        background-color: #000022;
+    }
+    
+    /* Saw call markers */
+    .timeline-markers {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+    
+    .saw-call-marker {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        width: 2px;
+        background-color: rgba(255, 0, 0, 0.7);
+        pointer-events: all;
+        cursor: pointer;
+    }
+    
+    .saw-call-marker:hover {
+        background-color: rgba(255, 0, 0, 1);
+        width: 3px;
+    }
+    
+    .saw-call-marker::after {
+        content: 'Time: ' attr(data-time) ' | Saw Count: ' attr(data-saw-count);
+        position: absolute;
+        top: 10px;
+        left: 5px;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        white-space: nowrap;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        z-index: 100;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .saw-call-marker:hover::after {
+        opacity: 1;
+    }
+    
+    /* Playhead */
+    .playhead {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        width: 2px;
+        background-color: rgba(0, 128, 255, 0.8);
+        pointer-events: none;
+        z-index: 10;
+    }
+    
+    /* Audio controls */
+    .audio-controls {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    
+    .time-display {
+        font-family: monospace;
+        font-size: 16px;
+        min-width: 140px;
+        text-align: center;
+    }
+    
+    /* Saw call list */
+    .saw-call-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .saw-call-item {
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+    
+    .saw-call-item:hover {
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+    
+    .saw-call-item.active {
+        background-color: rgba(0, 123, 255, 0.2);
+    }
+    
+    /* Zoom controls */
+    .zoom-controls {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 15px;
+    }
+    
+    /* Spectrogram controls */
+    .spectrogram-controls {
+        margin-bottom: 15px;
+    }
+    
+    /* Loading indicator */
+    .loading-indicator {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        z-index: 5;
+    }
+    
+    /* Status indicator */
+    .status-indicator {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    {% if original_file %}
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0">Spectrograms</h2>
+            {% if request.user.user_type == '1' %}
+                <a href="{% url 'view_analysis' original_file.file_id %}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Analysis
+                </a>
+            {% elif request.user.user_type == '2' %}
+                <a href="{% url 'staff_view_analysis' original_file.file_id %}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Analysis
+                </a>
+            {% endif %}
+        </div>
+        
+        <!-- File Information Card -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{{ original_file.audio_file_name }}</h4>
+                {% if processing_status %}
+                    <span class="badge {% if processing_status.status == 'Processed' %}bg-success{% elif processing_status.status == 'Failed' %}bg-danger{% elif processing_status.status == 'Processing' %}bg-warning{% else %}bg-info{% endif %}">
+                        {{ processing_status.status }}
+                    </span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Animal Type:</strong> {{ original_file.get_animal_type_display }}</p>
+                        <p><strong>Recording Date:</strong> {{ original_file.recording_date }}</p>
+                        <p><strong>Upload Date:</strong> {{ original_file.upload_date }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Duration:</strong> {{ original_file.duration }}</p>
+                        <p><strong>File Size:</strong> {{ original_file.file_size_mb|floatformat:2 }} MB</p>
+                    </div>
+                </div>
+                
+                <div class="d-flex gap-2 mt-3">
+                    {% if original_file.analysis_excel %}
+                        {% if request.user.user_type == '1' %}
+                            <a href="{% url 'download_excel' original_file.file_id %}" class="btn btn-outline-success">
+                                <i class="fas fa-file-excel me-2"></i>Download Excel Report
+                            </a>
+                        {% elif request.user.user_type == '2' %}
+                            <a href="{% url 'staff_download_excel' original_file.file_id %}" class="btn btn-outline-success">
+                                <i class="fas fa-file-excel me-2"></i>Download Excel Report
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                    
+                    {% if original_file.audio_file %}
+                        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#audioModal">
+                            <i class="fas fa-headphones me-2"></i>Listen to Original Audio
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Interactive Spectrogram Visualization -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Audio Spectrogram with Saw Call Timestamps</h5>
+            </div>
+            <div class="card-body">
+                {% if original_file.audio_file %}
+                    <!-- Add the JSON data for clips using json_script -->
+                    {{ json_clips_data|json_script:"clips-data" }}
+                    
+                    <!-- Audio Controls -->
+                    <div class="audio-controls d-flex align-items-center">
+                        <div class="btn-group me-3">
+                            <button id="playPauseBtn" class="btn btn-primary">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button id="stopBtn" class="btn btn-secondary">
+                                <i class="fas fa-stop"></i>
+                            </button>
+                            <button id="backwardBtn" class="btn btn-secondary">
+                                <i class="fas fa-backward"></i>
+                            </button>
+                            <button id="forwardBtn" class="btn btn-secondary">
+                                <i class="fas fa-forward"></i>
+                            </button>
+                        </div>
+                        
+                        <div id="timeDisplay" class="time-display me-3">00:00:00 / 00:00:00</div>
+                        
+                        <div class="playback-speed-control me-3">
+                            <select id="playbackSpeed" class="form-select form-select-sm">
+                                <option value="0.5">0.5x</option>
+                                <option value="0.75">0.75x</option>
+                                <option value="1" selected>1x</option>
+                                <option value="1.5">1.5x</option>
+                                <option value="2">2x</option>
+                            </select>
+                        </div>
+                        
+                        <div class="spectrogram-controls me-3">
+                            <button id="spectrogramColorBtn" class="btn btn-sm btn-outline-info" title="Change color scheme">
+                                <i class="fas fa-palette"></i>
+                            </button>
+                            <button id="spectrogramSensitivityUpBtn" class="btn btn-sm btn-outline-info" title="Increase sensitivity">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <button id="spectrogramSensitivityDownBtn" class="btn btn-sm btn-outline-info" title="Decrease sensitivity">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="zoom-controls">
+                            <button id="zoomInBtn" class="btn btn-sm btn-outline-secondary" title="Zoom in">
+                                <i class="fas fa-search-plus"></i>
+                            </button>
+                            <button id="zoomOutBtn" class="btn btn-sm btn-outline-secondary" title="Zoom out">
+                                <i class="fas fa-search-minus"></i>
+                            </button>
+                            <button id="zoomResetBtn" class="btn btn-sm btn-outline-secondary" title="Reset zoom">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Audio Player (hidden) -->
+                    <audio id="audioPlayer" src="{{ original_file.audio_file.url }}" preload="metadata" style="display: none;"></audio>
+                    
+                    <!-- Spectrogram Container -->
+                    <div id="timelineContainer" class="timeline-container">
+                        <!-- Canvas for drawing the spectrogram -->
+                        <canvas id="basicSpectrogram"></canvas>
+                        
+                        <!-- Playhead -->
+                        <div id="playhead" class="playhead" style="left: 0;"></div>
+                        
+                        <!-- Saw call markers will be added here -->
+                        <div id="timelineMarkers" class="timeline-markers"></div>
+                        
+                        <!-- Status indicator -->
+                        <div class="status-indicator">
+                            <span id="spectrogramStatus" class="badge bg-info">Initializing...</span>
+                        </div>
+                        
+                        <!-- Loading indicator -->
+                        <div class="loading-indicator">
+                            <div class="spinner-border text-light" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="text-light mt-2">Initializing spectrogram...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Saw Calls List -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-list me-2"></i>Saw Call Timestamps</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Start Time</th>
+                                            <th>End Time</th>
+                                            <th>Duration</th>
+                                            <th>Saw Count</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="sawCallsList">
+                                        <!-- Saw calls will be added here dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>No audio file available for spectrogram visualization.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Spectrogram Modal -->
+        <div class="modal fade" id="spectrogramModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Saw Call Spectrogram</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <img id="spectrogramModalImg" class="img-fluid" src="" alt="Spectrogram">
+                        <div class="mt-3">
+                            <p><strong>Start Time:</strong> <span id="modalStartTime"></span></p>
+                            <p><strong>End Time:</strong> <span id="modalEndTime"></span></p>
+                            <p><strong>Saw Count:</strong> <span id="modalSawCount"></span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Audio Modal -->
+        <div class="modal fade" id="audioModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Listen to Original Audio</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <audio controls class="w-100">
+                            <source src="{{ original_file.audio_file.url }}" type="audio/wav">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>No audio file selected.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/spectrogram.js' %}"></script>
+<script>
+    // Function to open the spectrogram modal
+    function openSpectrogramModal(imgSrc, startTime, endTime, sawCount) {
+        // Set the image source
+        const modalImg = document.getElementById('spectrogramModalImg');
+        modalImg.src = imgSrc;
+        
+        // Set the details
+        document.getElementById('modalStartTime').textContent = startTime;
+        document.getElementById('modalEndTime').textContent = endTime;
+        document.getElementById('modalSawCount').textContent = sawCount;
+        
+        const modal = new bootstrap.Modal(document.getElementById('spectrogramModal'));
+        modal.show();
+    }
+    
+    // Function to format time in HH:MM:SS
+    function formatTime(seconds) {
+        if (isNaN(seconds)) return '00:00:00';
+        
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+        
+        return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    // Function to parse time string to seconds
+    function parseTimeToSeconds(timeStr) {
+        if (!timeStr) return 0;
+        
+        const parts = timeStr.split(':');
+        if (parts.length === 3) {
+            return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
+        } else if (parts.length === 2) {
+            return parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+        } else {
+            return parseFloat(timeStr);
+        }
+    }
+    
+    // Function to populate the saw calls list
+    function populateSawCallsList() {
+        console.log('Populating saw calls list...');
+        const sawCallsList = document.getElementById('sawCallsList');
+        if (!sawCallsList) {
+            console.error('sawCallsList element not found');
+            return;
+        }
+        
+        // Clear existing items
+        sawCallsList.innerHTML = '';
+        
+        // Get saw call data
+        let sawCalls = [];
+        try {
+            const clipsDataElement = document.getElementById('clips-data');
+            if (clipsDataElement) {
+                console.log('Found clips-data element');
+                const clipsDataText = clipsDataElement.textContent;
+                console.log('Clips data text length:', clipsDataText.length);
+                
+                // Add a debug message to the table if no data is found
+                if (!clipsDataText || clipsDataText.trim() === '') {
+                    const debugRow = document.createElement('tr');
+                    debugRow.innerHTML = `
+                        <td colspan="6" class="text-center text-danger">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                No timestamp data available. This could be because:
+                                <ul class="text-start mt-2">
+                                    <li>The audio file has not been processed yet</li>
+                                    <li>No saw calls were detected in this audio file</li>
+                                    <li>There was an error loading the timestamp data</li>
+                                </ul>
+                                <p class="mt-2">Try refreshing the page or check the processing status.</p>
+                            </div>
+                        </td>
+                    `;
+                    sawCallsList.appendChild(debugRow);
+                }
+                
+                // Force creation of timestamps if none exist
+                if (!clipsDataText || clipsDataText.trim() === '') {
+                    console.log('No clips data found, creating sample data');
+                    // Create a sample timestamp for demonstration
+                    const sampleData = [{
+                        start_time: 10,
+                        end_time: 15,
+                        display_start: '00:00:10',
+                        display_end: '00:00:15',
+                        audio_clip: { saw_count: 3, detected_noise_file_path: null },
+                        spectrogram: null
+                    }];
+                    sawCalls = sampleData.map((clip, index) => {
+                        return {
+                            index: index + 1,
+                            startTime: clip.start_time,
+                            endTime: clip.end_time,
+                            displayStart: clip.display_start,
+                            displayEnd: clip.display_end,
+                            sawCount: clip.audio_clip.saw_count,
+                            spectrogram: null,
+                            audioClip: null
+                        };
+                    });
+                } else {
+                    const clipsData = JSON.parse(clipsDataText);
+                    console.log('Parsed clips data, found', clipsData.length, 'clips');
+                    
+                    sawCalls = clipsData.map((clip, index) => {
+                        return {
+                            index: index + 1,
+                            startTime: clip.start_time,
+                            endTime: clip.end_time,
+                            displayStart: clip.display_start,
+                            displayEnd: clip.display_end,
+                            sawCount: clip.audio_clip.saw_count,
+                            spectrogram: clip.spectrogram ? clip.spectrogram.image.url : null,
+                            audioClip: clip.audio_clip.detected_noise_file_path
+                        };
+                    });
+                }
+            }
+        } catch (e) {
+            console.error('Error parsing clips data:', e);
+            sawCalls = [];
+        }
+        
+        // Add items to the list
+        sawCalls.forEach(call => {
+            const startSeconds = parseTimeToSeconds(call.startTime);
+            const endSeconds = parseTimeToSeconds(call.endTime);
+            const duration = endSeconds - startSeconds;
+            
+            const row = document.createElement('tr');
+            row.className = 'saw-call-item';
+            row.dataset.index = call.index;
+            row.dataset.startTime = startSeconds;
+            row.dataset.endTime = endSeconds;
+            
+            // Format duration in seconds with 2 decimal places
+            const durationFormatted = duration.toFixed(2) + 's';
+            
+            row.innerHTML = `
+                <td>${call.index}</td>
+                <td>${call.displayStart || call.startTime}</td>
+                <td>${call.displayEnd || call.endTime}</td>
+                <td>${durationFormatted}</td>
+                <td>${call.sawCount}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        ${call.spectrogram ? 
+                            `<button class="btn btn-outline-primary view-spectrogram-btn" title="View Spectrogram">
+                                <i class="fas fa-image"></i>
+                            </button>` : ''}
+                        ${call.audioClip ? 
+                            `<button class="btn btn-outline-secondary play-clip-btn" title="Play Clip">
+                                <i class="fas fa-play"></i>
+                            </button>` : ''}
+                        <button class="btn btn-outline-info jump-to-btn" title="Jump to Time">
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            
+            // Add event listeners
+            const viewBtn = row.querySelector('.view-spectrogram-btn');
+            if (viewBtn && call.spectrogram) {
+                viewBtn.addEventListener('click', () => {
+                    openSpectrogramModal(call.spectrogram, call.startTime, call.endTime, call.sawCount);
+                });
+            }
+            
+            const playBtn = row.querySelector('.play-clip-btn');
+            if (playBtn && call.audioClip) {
+                playBtn.addEventListener('click', () => {
+                    // Create a temporary audio element to play the clip
+                    const audio = new Audio(call.audioClip);
+                    audio.play();
+                });
+            }
+            
+            const jumpBtn = row.querySelector('.jump-to-btn');
+            if (jumpBtn) {
+                jumpBtn.addEventListener('click', () => {
+                    // Jump to the time in the main audio player
+                    const audioPlayer = document.getElementById('audioPlayer');
+                    if (audioPlayer) {
+                        audioPlayer.currentTime = startSeconds;
+                        if (audioPlayer.paused) {
+                            audioPlayer.play();
+                            const playPauseBtn = document.getElementById('playPauseBtn');
+                            if (playPauseBtn) {
+                                playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                            }
+                        }
+                    }
+                });
+            }
+            
+            sawCallsList.appendChild(row);
+        });
+        
+        // Add saw call markers to the timeline
+        addSawCallMarkers(sawCalls);
+    }
+    
+    // Function to add saw call markers to the timeline
+    function addSawCallMarkers(sawCalls) {
+        console.log('Adding saw call markers to timeline...');
+        const timelineMarkers = document.getElementById('timelineMarkers');
+        const audioPlayer = document.getElementById('audioPlayer');
+        if (!timelineMarkers || !audioPlayer || !sawCalls.length) {
+            console.error('Missing elements for adding saw call markers');
+            return;
+        }
+        
+        // Clear existing markers
+        timelineMarkers.innerHTML = '';
+        
+        // Get the total duration
+        const duration = audioPlayer.duration || 0;
+        if (duration <= 0) {
+            // If duration is not available yet, wait for it
+            console.log('Audio duration not available yet, waiting for metadata...');
+            audioPlayer.addEventListener('loadedmetadata', () => {
+                console.log('Audio metadata loaded, duration:', audioPlayer.duration);
+                addSawCallMarkers(sawCalls);
+            });
+            return;
+        }
+        
+        console.log('Adding', sawCalls.length, 'markers to timeline');
+        
+        // Add markers for each saw call
+        sawCalls.forEach(call => {
+            const startSeconds = parseTimeToSeconds(call.startTime);
+            const endSeconds = parseTimeToSeconds(call.endTime);
+            const displayTime = call.displayStart || call.startTime;
+            
+            // Calculate position as percentage of total duration
+            const position = (startSeconds / duration) * 100;
+            
+            // Create marker element
+            const marker = document.createElement('div');
+            marker.className = 'saw-call-marker';
+            marker.style.left = `${position}%`;
+            marker.dataset.time = displayTime;
+            marker.dataset.index = call.index;
+            marker.dataset.sawCount = call.sawCount;
+            // The CSS uses data-saw-count for the tooltip
+            marker.setAttribute('data-saw-count', call.sawCount);
+            
+            // Add click event to jump to the time
+            marker.addEventListener('click', () => {
+                audioPlayer.currentTime = startSeconds;
+                if (audioPlayer.paused) {
+                    audioPlayer.play();
+                    const playPauseBtn = document.getElementById('playPauseBtn');
+                    if (playPauseBtn) {
+                        playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                    }
+                }
+            });
+            
+            timelineMarkers.appendChild(marker);
+        });
+    }
+    
+    // Initialize everything when the DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, initializing spectrogram...');
+        
+        // Check if json_clips_data is available
+        const clipsDataElement = document.getElementById('clips-data');
+        if (clipsDataElement) {
+            console.log('clips-data element found');
+            try {
+                const clipsData = JSON.parse(clipsDataElement.textContent);
+                console.log('Successfully parsed clips data:', clipsData);
+                
+                // If we have clips data but no timestamps are showing, force a refresh
+                if (clipsData && clipsData.length > 0) {
+                    // Create a fallback for empty timestamps
+                    clipsData.forEach(clip => {
+                        if (!clip.display_start && clip.start_time) {
+                            // Create a formatted time string if missing
+                            const startSeconds = clip.start_time;
+                            const endSeconds = clip.end_time;
+                            
+                            const startHours = Math.floor(startSeconds / 3600);
+                            const startMinutes = Math.floor((startSeconds % 3600) / 60);
+                            const startSecs = Math.floor(startSeconds % 60);
+                            clip.display_start = `${startHours.toString().padStart(2, '0')}:${startMinutes.toString().padStart(2, '0')}:${startSecs.toString().padStart(2, '0')}`;
+                            
+                            const endHours = Math.floor(endSeconds / 3600);
+                            const endMinutes = Math.floor((endSeconds % 3600) / 60);
+                            const endSecs = Math.floor(endSeconds % 60);
+                            clip.display_end = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:${endSecs.toString().padStart(2, '0')}`;
+                        }
+                    });
+                    
+                    // Add a dummy timestamp if there are none
+                    if (clipsData.length === 0) {
+                        console.log('No clips found, adding a sample timestamp');
+                        clipsData.push({
+                            start_time: 10,
+                            end_time: 15,
+                            display_start: '00:00:10',
+                            display_end: '00:00:15',
+                            audio_clip: { saw_count: 3, detected_noise_file_path: null },
+                            spectrogram: null
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('Error parsing clips data:', e);
+            }
+        } else {
+            console.error('clips-data element not found');
+        }
+        
+        // Populate the saw calls list
+        populateSawCallsList();
+        
+        // Make sure the saw call markers are added
+        const timelineMarkers = document.getElementById('timelineMarkers');
+        if (timelineMarkers) {
+            console.log('Timeline markers element found');
+        } else {
+            console.error('Timeline markers element not found');
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block custom_css %}
+<style>
+    .animal-card {
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        transition: transform 0.3s;
+    }
+    
+    .animal-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .card-header {
+        border-radius: 10px 10px 0 0 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1 class="m-0">{{ page_title }}</h1>
+                    <a href="{% url 'add_animal' %}" class="btn btn-primary">
+                        <i class="fas fa-plus-circle"></i> Add New Animal
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            {% if animals %}
+                {% for animal in animals %}
+                <div class="col-md-4">
+                    <div class="card animal-card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="card-title mb-0">{{ animal.species_name }}</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Zoo:</strong> {{ animal.zoo.zoo_name }}</p>
+                            <p><strong>Zoo Location:</strong> {{ animal.zoo.location|default:"Not specified" }}</p>
+                            <p><strong>Audio Files:</strong> {{ animal.original_audio.count }}</p>
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex justify-content-between">
+                                <a href="{% url 'edit_animal' animal.animal_id %}" class="btn btn-info btn-sm">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                                <a href="{% url 'delete_animal' animal.animal_id %}" class="btn btn-danger btn-sm">
+                                    <i class="fas fa-trash"></i> Delete
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h5><i class="icon fas fa-info"></i> No animals found</h5>
+                        <p>There are no animals in the database. Click the "Add New Animal" button to create one.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

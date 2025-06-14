@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .audio-card {
+        transition: transform 0.3s ease;
+        margin-bottom: 20px;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .audio-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    
+    .card-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid rgba(0,0,0,0.125);
+    }
+    
+    .status-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+    }
+    
+    .audio-info {
+        font-size: 0.9rem;
+    }
+    
+    .audio-info i {
+        width: 20px;
+        text-align: center;
+        margin-right: 5px;
+        color: #6c757d;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 5px;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 50px 20px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        margin-top: 30px;
+    }
+    
+    .empty-state i {
+        font-size: 48px;
+        color: #6c757d;
+        margin-bottom: 20px;
+    }
+    
+    .filters {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">All Audio Files</h2>
+        
+        {% if request.user.user_type == '1' %}
+            <a href="{% url 'admin_home' %}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+            </a>
+        {% elif request.user.user_type == '2' %}
+            <a href="{% url 'staff_home' %}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+            </a>
+        {% endif %}
+    </div>
+    
+    <!-- Filters -->
+    <div class="filters mb-4">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" name="search" class="form-control" placeholder="Search by filename" value="{{ search_query }}">
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <select name="status" class="form-select">
+                    <option value="" {% if not status_filter %}selected{% endif %}>All Statuses</option>
+                    <option value="Pending" {% if status_filter == 'Pending' %}selected{% endif %}>Pending</option>
+                    <option value="Processing" {% if status_filter == 'Processing' %}selected{% endif %}>Processing</option>
+                    <option value="Processed" {% if status_filter == 'Processed' %}selected{% endif %}>Processed</option>
+                    <option value="Failed" {% if status_filter == 'Failed' %}selected{% endif %}>Failed</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <input type="date" name="date" class="form-control" value="{{ date_filter }}">
+            </div>
+            
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Filter</button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Audio Files List -->
+    {% if audio_files %}
+        <div class="row">
+            {% for file in audio_files %}
+                <div class="col-md-6">
+                    <div class="card audio-card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0 text-truncate" title="{{ file.audio_file_name }}">
+                                {{ file.audio_file_name|truncatechars:30 }}
+                            </h5>
+                            
+                            {% if file.database_entry.first %}
+                                {% with status=file.database_entry.first.status %}
+                                    {% if status == 'Pending' %}
+                                        <span class="badge bg-warning status-badge">Pending</span>
+                                    {% elif status == 'Processing' %}
+                                        <span class="badge bg-info status-badge">Processing</span>
+                                    {% elif status == 'Processed' %}
+                                        <span class="badge bg-success status-badge">Processed</span>
+                                    {% elif status == 'Failed' %}
+                                        <span class="badge bg-danger status-badge">Failed</span>
+                                    {% endif %}
+                                {% endwith %}
+                            {% endif %}
+                        </div>
+                        
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="audio-info">
+                                        <p><i class="fas fa-paw"></i> <strong>Animal:</strong> {{ file.get_animal_type_display }}</p>
+                                        <p><i class="fas fa-calendar"></i> <strong>Recorded:</strong> 
+                                            {% if file.recording_date %}
+                                                {{ file.recording_date|date:"Y-m-d" }}
+                                            {% else %}
+                                                Unknown
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="audio-info">
+                                        <p><i class="fas fa-clock"></i> <strong>Uploaded:</strong> {{ file.upload_date|date:"Y-m-d H:i" }}</p>
+                                        <p><i class="fas fa-file-audio"></i> <strong>Size:</strong> {{ file.file_size_mb|floatformat:2 }} MB</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="action-buttons">
+                                <a href="{% url 'view_spectrograms' file.file_id %}" class="btn btn-primary">
+                                    <i class="fas fa-wave-square"></i> View Spectrogram
+                                </a>
+                                
+                                {% if file.analysis_excel %}
+                                    <a href="{% url 'view_analysis' file.file_id %}" class="btn btn-info">
+                                        <i class="fas fa-chart-bar"></i> Analysis
+                                    </a>
+                                    
+                                    <a href="{% url 'download_excel' file.file_id %}" class="btn btn-success">
+                                        <i class="fas fa-file-excel"></i> Excel
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <i class="fas fa-file-audio"></i>
+            <h4>No Audio Files Found</h4>
+            <p class="text-muted">No audio files match your search criteria or no files have been uploaded yet.</p>
+            
+            {% if request.user.user_type == '1' %}
+                <a href="{% url 'upload_audio' %}" class="btn btn-primary mt-3">
+                    <i class="fas fa-upload me-2"></i>Upload Audio Files
+                </a>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

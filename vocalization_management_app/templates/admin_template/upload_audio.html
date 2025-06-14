@@ -1,0 +1,493 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Audio Files{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title mb-0">Upload Audio Files</h3>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                    <div class="alert alert-info">
+                        {% for message in messages %}
+                        {{ message }}<br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <form method="post" enctype="multipart/form-data" id="uploadForm">
+                        {% csrf_token %}
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="id_animal_type" class="form-label">{{ form.animal_type.label }}</label>
+                                    {{ form.animal_type|safe }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="id_zoo" class="form-label">{{ form.zoo.label }}</label>
+                                    {{ form.zoo|safe }}
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="alert alert-info mt-2">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <small>Recording date will be automatically extracted from the filename (format: SMM07257_20230201_171502.wav)</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mb-4">
+                            <label class="form-label">Upload Method</label>
+                            <div class="d-flex gap-4">
+                                <div class="form-check">
+                                    <input type="radio" id="fileUpload" name="uploadMethod" class="form-check-input" checked>
+                                    <label class="form-check-label" for="fileUpload">Select Files</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="radio" id="folderUpload" name="uploadMethod" class="form-check-input">
+                                    <label class="form-check-label" for="folderUpload">Select Folder</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-4" id="fileUploadDiv">
+                            <label for="id_audio_files" class="form-label">{{ form.audio_files.label }}</label>
+                            <div class="upload-area" id="dropZone">
+                                <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-muted"></i>
+                                <p class="mb-2">Drag and drop audio files here</p>
+                                <p class="text-muted small mb-3">or</p>
+                                <div class="d-flex justify-content-center gap-3">
+                                    <label for="id_audio_files" class="btn btn-outline-primary">
+                                        <i class="fas fa-folder-open me-2"></i>Browse Files
+                                    </label>
+                                    <button type="button" id="googleDriveButton" class="btn btn-outline-danger">
+                                        <i class="fab fa-google-drive me-2"></i>Choose from Google Drive
+                                    </button>
+                                </div>
+                                <input type="file" class="d-none" id="id_audio_files" name="audio_files" accept=".wav" multiple>
+                                <input type="hidden" id="id_google_drive_url" name="google_drive_url">
+                                <p class="text-muted small mt-2">{{ form.audio_files.help_text }}</p>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-4" id="folderUploadDiv" style="display: none;">
+                            <label for="id_folder" class="form-label">Select Folder</label>
+                            <div class="upload-area" id="folderDropZone">
+                                <i class="fas fa-folder-open fa-3x mb-3 text-muted"></i>
+                                <p class="mb-2">Select a folder containing .wav files</p>
+                                <p class="text-muted small mb-3">or</p>
+                                <label for="id_folder" class="btn btn-outline-primary">
+                                    Browse Folder
+                                </label>
+                                <input type="file" class="d-none" id="id_folder" webkitdirectory directory multiple>
+                                <p class="text-muted small mt-2">All .wav files in the selected folder will be uploaded</p>
+                            </div>
+                            <input type="hidden" name="folder_upload" id="id_folder_upload" value="false">
+                        </div>
+
+
+
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary" id="submitBtn">
+                                <i class="fas fa-upload me-2"></i>Upload
+                            </button>
+                        </div>
+                    </form>
+
+                    <div id="uploadProgress" style="display: none;" class="mt-4">
+                        <h4 class="mb-3">Upload Progress</h4>
+                        <div class="progress mb-3">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" id="progressBar"></div>
+                        </div>
+                        <div id="uploadStatus" class="mb-3"></div>
+                        <div id="fileList" class="mt-3">
+                            <h5 class="mb-2">Files to Upload:</h5>
+                            <ul class="list-group" id="filesToUpload"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap Modal Script -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
+
+<script>
+    // DOM elements
+    const uploadForm = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('id_audio_files');
+    const folderInput = document.getElementById('id_folder');
+    const folderUploadInput = document.getElementById('id_folder_upload');
+    const driveUrlInput = document.getElementById('id_google_drive_url');
+    const fileUploadDiv = document.getElementById('fileUploadDiv');
+    const folderUploadDiv = document.getElementById('folderUploadDiv');
+    const fileUploadRadio = document.getElementById('fileUpload');
+    const folderUploadRadio = document.getElementById('folderUpload');
+    const dropZone = document.getElementById('dropZone');
+    const folderDropZone = document.getElementById('folderDropZone');
+    const googleDriveButton = document.getElementById('googleDriveButton');
+    const filesToUpload = document.getElementById('filesToUpload');
+    const uploadStatus = document.getElementById('uploadStatus');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const submitBtn = document.getElementById('submitBtn');
+
+    // Google Drive integration
+    // We'll use a simpler approach with direct URL input
+    
+    // Google Drive button click handler - Simple URL input approach
+    googleDriveButton.addEventListener('click', function() {
+        // Create a modal dialog for entering Google Drive URL
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = 'driveUrlModal';
+        modal.setAttribute('tabindex', '-1');
+        modal.setAttribute('aria-labelledby', 'driveUrlModalLabel');
+        modal.setAttribute('aria-hidden', 'true');
+        
+        modal.innerHTML = 
+            '<div class="modal-dialog">'+
+                '<div class="modal-content">'+
+                    '<div class="modal-header">'+
+                        '<h5 class="modal-title" id="driveUrlModalLabel">Import from Google Drive</h5>'+
+                        '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>'+
+                    '</div>'+
+                    '<div class="modal-body">'+
+                        '<div class="mb-3">'+
+                            '<label for="driveUrlModalInput" class="form-label">Google Drive Folder URL</label>'+
+                            '<div class="input-group">'+
+                                '<span class="input-group-text"><i class="fab fa-google-drive"></i></span>'+
+                                '<input type="url" class="form-control" id="driveUrlModalInput" placeholder="https://drive.google.com/drive/folders/...">'+
+                            '</div>'+
+                        '</div>'+
+                        '<div class="alert alert-info">'+
+                            '<i class="fas fa-info-circle me-2"></i>'+
+                            '<small>Enter a Google Drive folder URL. All .wav files in the folder will be imported.</small>'+
+                        '</div>'+
+                    '</div>'+
+                    '<div class="modal-footer">'+
+                        '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>'+
+                        '<button type="button" class="btn btn-primary" id="confirmDriveUrl">'+
+                            '<i class="fab fa-google-drive me-2"></i>Import Files'+
+                        '</button>'+
+                    '</div>'+
+                '</div>'+
+            '</div>';
+        
+        document.body.appendChild(modal);
+        
+        // Initialize the Bootstrap modal
+        const modalInstance = new bootstrap.Modal(modal);
+        modalInstance.show();
+        
+        // Handle the confirmation button click
+        document.getElementById('confirmDriveUrl').addEventListener('click', function() {
+            const driveUrl = document.getElementById('driveUrlModalInput').value.trim();
+            if (driveUrl) {
+                // Set the Google Drive URL in the hidden input
+                driveUrlInput.value = driveUrl;
+                
+                // Update the UI to show that Google Drive is selected
+                uploadStatus.innerHTML = '<div class="alert alert-info"><i class="fab fa-google-drive me-2"></i>Google Drive folder selected: <strong>' + driveUrl + '</strong></div>';
+                uploadProgress.style.display = 'block';
+                filesToUpload.innerHTML = '<li class="list-group-item"><i class="fab fa-google-drive me-2 text-danger"></i>All .wav files from Google Drive folder will be imported</li>';
+                
+                // Close the modal
+                modalInstance.hide();
+            } else {
+                alert('Please enter a valid Google Drive folder URL');
+            }
+        });
+        
+        // Clean up the modal when it's hidden
+        modal.addEventListener('hidden.bs.modal', function() {
+            document.body.removeChild(modal);
+        });
+    });
+
+    // Handle upload method selection
+    fileUploadRadio.addEventListener('change', function() {
+        if (this.checked) {
+            fileUploadDiv.style.display = 'block';
+            folderUploadDiv.style.display = 'none';
+            folderUploadInput.value = 'false';
+        }
+    });
+    
+    folderUploadRadio.addEventListener('change', function() {
+        if (this.checked) {
+            fileUploadDiv.style.display = 'none';
+            folderUploadDiv.style.display = 'block';
+            folderUploadInput.value = 'true';
+        }
+    });
+    
+    // Drag and drop for files
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+        folderDropZone.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+        folderDropZone.addEventListener(eventName, highlight, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+        folderDropZone.addEventListener(eventName, unhighlight, false);
+    });
+    
+    dropZone.addEventListener('drop', handleFileDrop, false);
+    folderDropZone.addEventListener('drop', handleFolderDrop, false);
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    function highlight(e) {
+        this.classList.add('border-primary');
+    }
+    
+    function unhighlight(e) {
+        this.classList.remove('border-primary');
+    }
+        
+    function handleFileDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        fileInput.files = files;
+        updateFileList(files);
+    }
+    
+    function handleFolderDrop(e) {
+        // This won't work directly for folders due to security restrictions
+        // Just highlight that they need to use the browse button
+        alert('Please use the Browse Folder button to select a folder');
+    }
+        
+    // Update file list when files are selected
+    fileInput.addEventListener('change', function() {
+        updateFileList(this.files);
+    });
+    
+    folderInput.addEventListener('change', function() {
+        updateFileList(this.files);
+    });
+        
+    // Function to update the file list display
+    function updateFileList(files) {
+        if (files.length > 0) {
+            uploadProgress.style.display = 'block';
+            filesToUpload.innerHTML = '';
+            
+            let totalSize = 0;
+            let validFiles = 0;
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.name.toLowerCase().endsWith('.wav')) {
+                    validFiles++;
+                    totalSize += file.size;
+                    
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.innerHTML = `
+                        <div>
+                            <i class="fas fa-file-audio me-2 text-primary"></i>
+                            ${file.name}
+                        </div>
+                        <span class="badge bg-secondary">${formatFileSize(file.size)}</span>
+                    `;
+                    filesToUpload.appendChild(li);
+                }
+            }
+            
+            uploadStatus.innerHTML = `<div class="alert alert-info">${validFiles} valid .wav files selected (${formatFileSize(totalSize)})</div>`;
+        } else {
+            uploadProgress.style.display = 'none';
+        }
+    }
+    
+    // Format file size
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+        
+        // Listen for messages from the OAuth popup
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'google-auth-complete') {
+                if (event.data.success) {
+                    console.log('Google authentication successful');
+                    // If we have a pending upload, submit the form now
+                    if (driveUrlInput.value) {
+                        uploadForm.submit();
+                    }
+                } else {
+                    console.error('Google authentication failed:', event.data.message);
+                    uploadStatus.innerHTML = `<div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Google authentication failed: ${event.data.message}
+                    </div>`;
+                }
+            }
+        });
+        
+        // Handle form submission
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            let files;
+            
+            if (fileUploadRadio.checked) {
+                files = fileInput.files;
+                
+                // Check if Google Drive URL is provided instead of files
+                if (driveUrlInput.value.trim() && (!files || files.length === 0)) {
+                    // Submit the form with the Drive URL
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading from Google Drive...';
+                    uploadStatus.innerHTML = '<div class="alert alert-info">Connecting to Google Drive and processing files. This may take a while...</div>';
+                    
+                    // Use AJAX to submit the form to handle potential authentication redirects
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', window.location.href);
+                    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                    
+                    xhr.onload = function() {
+                        if (xhr.status === 200) {
+                            try {
+                                const response = JSON.parse(xhr.responseText);
+                                
+                                // Check if authentication is required
+                                if (response.requires_auth && response.auth_url) {
+                                    // Open a popup for Google authentication
+                                    const width = 600;
+                                    const height = 600;
+                                    const left = (window.innerWidth - width) / 2;
+                                    const top = (window.innerHeight - height) / 2;
+                                    
+                                    window.open(
+                                        response.auth_url,
+                                        'googleAuthPopup',
+                                        `width=${width},height=${height},left=${left},top=${top}`
+                                    );
+                                    
+                                    uploadStatus.innerHTML = `<div class="alert alert-info">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>
+                                        Please sign in to your Google account in the popup window...
+                                    </div>`;
+                                } else if (response.success === false) {
+                                    // Handle other errors
+                                    uploadStatus.innerHTML = `<div class="alert alert-danger">Error: ${response.message || 'Unknown error'}</div>`;
+                                    submitBtn.disabled = false;
+                                    submitBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
+                                } else {
+                                    // Regular response, reload the page
+                                    window.location.reload();
+                                }
+                            } catch (e) {
+                                // If not JSON, it's probably the full HTML page (form validation error)
+                                window.location.reload();
+                            }
+                        } else {
+                            uploadStatus.innerHTML = `<div class="alert alert-danger">Upload failed with status: ${xhr.status}</div>`;
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
+                        }
+                    };
+                    
+                    xhr.onerror = function() {
+                        uploadStatus.innerHTML = '<div class="alert alert-danger">Upload failed. Please try again.</div>';
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
+                    };
+                    
+                    xhr.send(formData);
+                    return;
+                }
+            } else if (folderUploadRadio.checked) {
+                files = folderInput.files;
+            }
+            
+            // Validate files
+            let validFiles = 0;
+            for (let i = 0; i < files.length; i++) {
+                if (files[i].name.toLowerCase().endsWith('.wav')) {
+                    validFiles++;
+                }
+            }
+            
+            if (validFiles === 0) {
+                alert('Please select at least one .wav file to upload');
+                return;
+            }
+            
+            // Update UI
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+            progressBar.style.width = '0%';
+            uploadStatus.innerHTML = '<div class="alert alert-info">Preparing to upload...</div>';
+            
+            // Send AJAX request
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', window.location.href);
+            
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    progressBar.style.width = percentComplete + '%';
+                    uploadStatus.innerHTML = `<div class="alert alert-info">Uploading: ${Math.round(percentComplete)}%</div>`;
+                }
+            };
+            
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            uploadStatus.innerHTML = `<div class="alert alert-success">${response.message}</div>`;
+                            setTimeout(() => {
+                                window.location.href = response.redirect_url;
+                            }, 2000);
+                        } else {
+                            uploadStatus.innerHTML = `<div class="alert alert-danger">Error: ${response.message}</div>`;
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
+                        }
+                    } catch (e) {
+                        // If not JSON, it's probably the full HTML page (form validation error)
+                        window.location.reload();
+                    }
+                } else {
+                    uploadStatus.innerHTML = `<div class="alert alert-danger">Upload failed with status: ${xhr.status}</div>`;
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
+                }
+            };
+            
+            xhr.onerror = function() {
+                uploadStatus.innerHTML = '<div class="alert alert-danger">Upload failed. Please try again.</div>';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
+            };
+            
+            xhr.send(formData);
+        });
+    });
+</script>
+{% endblock %}

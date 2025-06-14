@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block custom_css %}
+<style>
+    .form-card {
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .parameter-help {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .form-group label {
+        font-weight: 500;
+    }
+    
+    .range-group {
+        display: flex;
+        gap: 1rem;
+    }
+    
+    .range-group .form-group {
+        flex: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="content">
+    <div class="container-fluid">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="m-0">{{ page_title }}</h3>
+                    <a href="{% url 'animal_detection_parameters_list' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left mr-2"></i> Back to List
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        {% if messages %}
+        <div class="row">
+            <div class="col-12">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="card form-card">
+                    <div class="card-body">
+                        <form method="post" action="">
+                            {% csrf_token %}
+                            
+                            <div class="form-group">
+                                <label for="id_name">Animal Name</label>
+                                {{ form.name }}
+                                <small class="parameter-help">Enter a descriptive name for this parameter set (e.g., "Amur Leopard", "Tiger", etc.)</small>
+                                {% if form.name.errors %}
+                                <div class="text-danger">
+                                    {{ form.name.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="card mb-4 mt-4">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0">Magnitude Settings</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="range-group">
+                                        <div class="form-group">
+                                            <label for="id_min_magnitude">Minimum Magnitude</label>
+                                            {{ form.min_magnitude }}
+                                            <small class="parameter-help">{{ form.min_magnitude.help_text }}</small>
+                                            {% if form.min_magnitude.errors %}
+                                            <div class="text-danger">
+                                                {{ form.min_magnitude.errors }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="id_max_magnitude">Maximum Magnitude</label>
+                                            {{ form.max_magnitude }}
+                                            <small class="parameter-help">{{ form.max_magnitude.help_text }}</small>
+                                            {% if form.max_magnitude.errors %}
+                                            <div class="text-danger">
+                                                {{ form.max_magnitude.errors }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card mb-4">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0">Frequency Settings</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="range-group">
+                                        <div class="form-group">
+                                            <label for="id_min_frequency">Minimum Frequency (Hz)</label>
+                                            {{ form.min_frequency }}
+                                            <small class="parameter-help">{{ form.min_frequency.help_text }}</small>
+                                            {% if form.min_frequency.errors %}
+                                            <div class="text-danger">
+                                                {{ form.min_frequency.errors }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="id_max_frequency">Maximum Frequency (Hz)</label>
+                                            {{ form.max_frequency }}
+                                            <small class="parameter-help">{{ form.max_frequency.help_text }}</small>
+                                            {% if form.max_frequency.errors %}
+                                            <div class="text-danger">
+                                                {{ form.max_frequency.errors }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card mb-4">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0">Time Settings</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="range-group">
+                                        <div class="form-group">
+                                            <label for="id_segment_duration">Segment Duration (seconds)</label>
+                                            {{ form.segment_duration }}
+                                            <small class="parameter-help">{{ form.segment_duration.help_text }}</small>
+                                            {% if form.segment_duration.errors %}
+                                            <div class="text-danger">
+                                                {{ form.segment_duration.errors }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="id_time_threshold">Time Threshold (seconds)</label>
+                                            {{ form.time_threshold }}
+                                            <small class="parameter-help">{{ form.time_threshold.help_text }}</small>
+                                            {% if form.time_threshold.errors %}
+                                            <div class="text-danger">
+                                                {{ form.time_threshold.errors }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card mb-4">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0">Detection Settings</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label for="id_min_impulse_count">Minimum Impulse Count</label>
+                                        {{ form.min_impulse_count }}
+                                        <small class="parameter-help">{{ form.min_impulse_count.help_text }}</small>
+                                        {% if form.min_impulse_count.errors %}
+                                        <div class="text-danger">
+                                            {{ form.min_impulse_count.errors }}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="form-check mt-4">
+                                        {{ form.is_default }}
+                                        <label class="form-check-label" for="id_is_default">
+                                            Use as Default Parameters
+                                        </label>
+                                        <div>
+                                            <small class="parameter-help">{{ form.is_default.help_text }}</small>
+                                        </div>
+                                        {% if form.is_default.errors %}
+                                        <div class="text-danger">
+                                            {{ form.is_default.errors }}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group text-center mt-4">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-save mr-2"></i> Save Parameters
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -17,6 +17,6 @@ whitenoise>=6
 # Azure Storage
 azure-storage-blob>=12.25.1
 django-storages>=1.14.6
-# Google API Client for Google Drive Integration
+# Google API Client for Google Drive Integration1
 google-api-python-client>=2.120.0
 oauth2client>=4.1.3

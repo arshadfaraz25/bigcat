@@ -29,7 +29,16 @@ SECRET_KEY = 'ogjd7f5ycg_8csev$-b-a1kqz458&mmj7x#29*39c*8#&3fpus'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    "bigcatvocalization-dbgcgrarfca3e5hn.canadacentral-01.azurewebsites.net",
+    "127.0.0.1",
+    "localhost"
+]
+
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://bigcatvocalization-dbgcgrarfca3e5hn.canadacentral-01.azurewebsites.net"
+]
 
 
 # Application definition
